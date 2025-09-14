@@ -6,7 +6,7 @@ author: "研究生：程長磊(指導教授：林士貴博士、翁久幸博士)
 fontsize: 20pt
 format: 
   revealjs: 
-    theme: "black"
+    theme: "simple"
     transition: "none"
     slide-number: true
     toc: true
@@ -355,6 +355,371 @@ $$
 | 適用資料結構 | 高維度但不要求穩定性                      | 高維度且需穩定與可解釋性                        | 高維度分類問題，需方向性與效率                 |
 |️ 計算成本     | 低（只做一元回歸）                        | 中（每步需做多元 OLS）                          | 中（每步需計算偏微分與 MLE）                    |
 | 可解釋性     | 中（逐步選模但不修正）                    | 高（每步都重新估計，避免重複解釋）              | 高（偏微分具方向性，選模邏輯清楚）              |
+
+## 情緒分數
+
+### CGA（Coordinate Greedy Algorithm）
+
+### 計算流程
+
+1. **建模方式**
+   - 使用邏輯斯迴歸（Logistic Regression）模型：
+     $$
+     \hat{Y_i} = \frac{e^{\hat{\alpha}+\sum \hat{\beta_{J_T}}X_{i:{\hat{J_T}}}}}{1 + e^{\hat{\alpha}+\sum \hat{\beta_{J_T}}X_{i:{\hat{J_T}}}}}
+     $$
+   - $\hat{Y_i}$：報酬方向（例如正報酬為 1，負報酬為 0）  
+   - $X_{i:{\hat{J_T}}}$：選出的詞彙特徵向量  
+   - $\hat\beta_{J_T}$：詞彙影響係數
+
+2. **情緒分數推估**
+   - 將新文章的詞彙向量 $X_{new:{\hat{J_T}}}$ 帶入模型，計算其預測機率，即為情緒分數。
+
+---
+
+### OGA（Orthogonal Greedy Algorithm）
+
+### 計算流程
+
+1. **建模方式**
+   - 使用普通最小平方法（OLS）迴歸：
+     $$
+     \hat{Y}_i = \hat{\alpha} + \hat{\beta} X_{i:\hat{N}}
+     $$
+
+2. **情緒分數推估**
+   - 將新文章的詞彙向量 $X_{new:\hat{N}}$ 帶入模型，計算預測報酬或相似分數。
+
+---
+
+### 小結比較
+
+| 模型 | 選模邏輯 | 建模方式 | 情緒分數意涵 |
+|------|-----------|-----------|----------------|
+| CGA  | 座標式貪婪選模 | 邏輯斯迴歸 | 預測報酬方向的機率 |
+| OGA  | 殘差最大相關性 + 正交化 | 線性迴歸（OLS） | 預測報酬值或相似分數 |
+
+
+
+# 實證分析
+
+## 敘述統計{.smaller}
+
+<div style="display: flex; justify-content: space-between;">
+  <img src="images/plot4_1.png" alt="左圖" style="width:48%;">
+  <img src="images/plot4_2.png" alt="右圖" style="width:48%;">
+</div>
+
+## 資料預處理
+
+### 自然語言處裡
+
+- 進行斷詞、詞性標記及實體辨識
+
+<div style="border:1px solid #ccc; padding:10px; background-color:#f9f9f9;">
+記憶體封測廠力成 (6239-TW) 今 (5) 日傳出發生氣爆，對此力成回應，僅是3C廠區內發生小事故，但未造成人員傷亡，也沒有對生產或營運造成任何影響。
+</div>
+
+
+### CKIP 斷詞後結果整理如下：
+
+<div style="font-size: 18px; overflow-x: auto;">
+  <table border="1" cellspacing="0" cellpadding="4">
+    <tr>
+      <th>單詞</th>
+      <td>記憶體</td><td>封測廠</td><td>力成</td><td>(</td><td>6239-TW</td><td>)</td><td>今</td><td>(5)</td><td>日</td><td>傳出</td><td>發生</td><td>氣爆</td><td>，</td><td>...</td><td>造成</td><td>任何</td><td>影響</td>
+    </tr>
+    <tr>
+      <th>詞性</th>
+      <td>Na</td><td>Nc</td><td>Nb</td><td>Pun.</td><td>Neu</td><td>Pun.</td><td>Nd</td><td>Neu</td><td>Nd</td><td>VC</td><td>VJ</td><td>VH</td><td>Pun.</td><td>...</td><td>VK</td><td>Vega</td><td>Na</td>
+    </tr>
+    <tr>
+      <th>實體辨識</th>
+      <td></td><td></td><td>人物</td><td></td><td></td><td></td><td>日期</td><td>日期</td><td>日期</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td>
+    </tr>
+  </table>
+</div>
+
+---
+  
+### 正規化
+
+- 移除<font color="red">『專有名詞』、『日期』等字詞</font>、<font color="green">移除數字、標點符號、特殊符號等非中文詞彙</font>、<font color="blue">移除中文停止詞或修飾詞</font>
+
+<div style="font-size: 18px; overflow-x: auto;">
+  <table border="1" cellspacing="0" cellpadding="6">
+    <tr>
+      <th>單詞</th>
+      <td>記憶體</td>
+      <td>封測廠</td>
+      <td><span style="color:red">力成</span></td>
+      <td><span style="color:green">(</span></td>
+      <td><span style="color:green">6239-TW</span></td>
+      <td><span style="color:green">)</span></td>
+      <td><span style="color:red">今</span></td>
+      <td><span style="color:red">(5)</span></td>
+      <td><span style="color:red">日</span></td>
+      <td>傳出</td>
+      <td>發生</td>
+      <td>氣爆</td>
+      <td><span style="color:blue">，</span></td>
+      <td><span style="color:blue">對</span></td>
+      <td><span style="color:blue">此</span></td>
+      <td><span style="color:red">力成</span></td>
+      <td>回應</td>
+    </tr>
+    <tr>
+      <th>詞性</th>
+      <td>Na</td>
+      <td>Nc</td>
+      <td>Nb</td>
+      <td>Pun.</td>
+      <td>Neu</td>
+      <td>Pun.</td>
+      <td>Nd</td>
+      <td>Neu</td>
+      <td>Nd</td>
+      <td>VC</td>
+      <td>VJ</td>
+      <td>VH</td>
+      <td>Pun.</td>
+      <td>P</td>
+      <td>Nep</td>
+      <td>Nb</td>
+      <td>Vc</td>
+    </tr>
+    <tr>
+      <th>實體辨識</th>
+      <td></td>
+      <td></td>
+      <td>人物</td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td>日期</td>
+      <td>日期</td>
+      <td>日期</td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td></td>
+    </tr>
+  </table>
+</div>
+
+
+---
+
+## 訓練設定
+
+- 訓練集:\
+  - 五年為一個滾動週期\
+  - 例: 第一個週期(2010年-2014年)、第二個週期(2011年-2015年)\
+  - 共七組訓練集\
+  - 將 Day T 所發布之新聞與其所標記之股票 Day T 至 Day T+1 Open-to-Open Return 相互對應\
+- 測試集:\
+  - 訓練週期後一年最為樣本外測試集\
+  - 使用 Day T 所發布之新聞估算預測其情緒分數，並建構 Day T+1 之投資組合\
+  
+- 超參數:\
+  - $\kappa = 0.7-0.9 \quad (0.8 - 0.94)$ 每0.2為一間隔挑選$\kappa$\
+  - k 為OGA或PGA在做HDIC前挑選之變數數量(k = 100-500)\
+
+## 字詞挑選結果：OGA (k = 200, $\kappa$ = 0.78) 
+
+![](images/plot4_5.png)
+
+## 字詞挑選結果：CGA (k = 200, $\kappa$ = 0.78) 
+
+![](images/plot4_6.png)
+
+## 投資組合報酬比較
+
+- 投資組合:\
+  - 多頭:<font color = "red">買</font>進情緒分數最**高**的5篇新聞對應之股票\
+  - 空頭:<font color = "red">賣</font>進情緒分數最**低**的5篇新聞對應之股票\
+- 買賣方式:\
+  - 等權重(Equal-Weight, EW)\
+  - 市值權重(Value-Weight, VW)\
+- 評估績效:\
+  - 多空部位(L-S)\
+  - 多頭(L)\
+  - 空頭(S)\
+
+---
+
+### OGA v.s. CGA 比較
+
+![](images/plot4_7.png)
+
+---
+
+<table border="1" cellspacing="0" cellpadding="6" style="font-size:22px; text-align:center;">
+  <thead>
+    <tr>
+      <th>交易策略</th>
+      <th>夏普值 (Sharpe Ratio)</th>
+      <th>平均報酬 (Average Return)</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr style="background-color:#e6f2ff;">
+      <td>OGA EW L-S</td><td>0.52</td><td>3.33</td>
+    </tr>
+    <tr style="background-color:#e6f2ff;">
+      <td>OGA EW L</td><td>-0.11</td><td>-0.64</td>
+    </tr>
+    <tr style="background-color:#e6f2ff;">
+      <td>OGA EW S</td><td>0.73</td><td>3.97</td>
+    </tr>
+    <tr style="background-color:#e8fbe8;">
+      <td>CGA EW L-S</td><td>1.18</td><td>6.97</td>
+    </tr>
+    <tr style="background-color:#e8fbe8;">
+      <td>CGA EW L</td><td>0.45</td><td>2.36</td>
+    </tr>
+    <tr style="background-color:#e8fbe8;">
+      <td>CGA EW S</td><td>0.83</td><td>4.61</td>
+    </tr>
+    <tr>
+      <td><strong>TW 50</strong></td><td><strong>0.74</strong></td><td><strong>4.12</strong></td>
+    </tr>
+  </tbody>
+</table>
+
+---
+
+### CGA投資組合績效
+
+![](images/plot4_8.png)
+
+
+## 新聞與價格延遲之關係與反應速度
+
+
+- 分析目的:
+  - 探討台股市場中，投資人對新聞消息的反應是否提前、即時或延遲。
+  
+![](images/plot4_9.png)
+
+---
+
+### 三種策略比較
+
+| 策略   | 對應時間範圍                  | 說明                                       | 可否交易 |
+|--------|-------------------------------|--------------------------------------------|-----------|
+| Day−1  | 第 T−1 天開盤 → 第 T 天開盤   | 新聞尚未發佈，股價已有劇烈反應，可能反映內線消息 | <span style= "color:red">不可交易</span> |
+| Day0   | 第 T 天開盤 → 第 T 天收盤     | 新聞當天即時反應，但無法事先進場             | <span style= "color:red">不可交易</span> |
+| Day+1  | 第 T+1 天開盤 → 第 T+1 天收盤 | 新聞隔天仍有顯著反應，可形成延遲交易策略     | <span style="color:green">可交易</span> |
+
+---
+
+### 實證發現
+
+- **Day−1（藍色虛線）**：
+  - 市場提前反應，顯示部分報酬已透過內線反映至股價。
+- **Day0（紅色虛線）**： 
+  - 大部分新聞訊息於當天已反映至股價，但無法即時交易。
+- **Day+1（黑色實線）**：
+  - 情緒延遲反應仍可帶來超額報酬，是可行的交易策略。
+  
+### 結論
+
+利用新聞情緒建構投資組合，隔日進場仍具預測力與報酬潛力。
+
+## 異質性分析:市值與波動度對新聞情緒反應的影響
+
+
+### 分析目的
+探討不同類型股票在面對新聞情緒時的反應速度與強度是否存在差異。
+
+---
+
+### 市值分類分析
+
+- 依台股上市公司市值**中位數**，分為「大公司」與「小公司」
+- 小公司：
+  - 多頭反應至 Day+1 即結束 → 投資者對正面新聞反應較弱
+  - 空頭反應延續至 Day+4 → 投資者對負面新聞反應強烈，顯示恐慌心理
+- 大公司：
+  - 空頭反應於 Day+1 完成 → 負面新聞影響較小，投資者信心穩定
+
+![](images/plot4_11.png)
+
+---
+
+### 波動度分類分析
+
+- 依台股上市公司波動度**中位數**，分為「高波動」與「低波動」公司
+- 高波動公司：
+  - 報酬不確定性高 → 擁有資訊者可能獲得更高報酬
+  - 情緒反應較慢 → 約需 3 天才能完全反映至股價
+- 低波動公司：
+  - 情緒訊息較易被市場吸收 → 反應速度較快
+
+![](images/plot4_12.png)
+
+---
+
+### 延遲反應分析
+
+- 觀察新聞發佈後第 1 至第 10 天的平均報酬
+- 多空策略於 Day+3 完全反應 → 台股反應速度快於美股（美股需至 Day+4）
+- 顯示台股新聞情緒多在發佈日或前一天已被市場吸收
+
+![](images/plot4_10.png)
+
+---
+
+### 結論摘要
+
+| 分類維度 | 發現重點 |
+|----------|-----------|
+| 市值大小 | 小公司負面新聞反應延遲且強烈，大公司較穩定 |
+| 波動度高低 | 高波動公司反應較慢但潛在報酬高 |
+| 延遲反應 | 台股新聞情緒多在 Day+3 前完成反應，快於美股
+
+
+#  研究結論與貢獻整理
+
+## 研究目的
+
+- 建構台股新聞情緒分數模型，依據 Ing & Lai (2011) 及 Chen et al. (2019) 的高維選模方法。
+- 利用情緒分數建立交易策略，並比較線性與非線性報酬假設下的投資績效。
+- 驗證台灣股市（以散戶為主）在新聞反應速度與投資行為上的特性。
+
+---
+
+## 實證發現
+
+- 兩種高維選模模型估算出的新聞情緒分數能有效預測台股報酬。
+- 非線性報酬假設下，投資組合績效更佳。
+- 情緒分數能精確捕捉新聞情緒，有助於理解新聞媒體對投資決策的影響。
+
+---
+
+## 市場反應速度與行為差異
+
+- 台灣股市對新聞的反應速度快於美國市場（符合 Ke et al., 2019）。
+- 台灣投資人（以散戶為主）對負面新聞反應更強烈，傾向恐慌性賣出。
+- 空頭策略報酬優於多頭策略，反映市場的悲觀偏誤。
+
+---
+
+## 投資策略績效
+
+- 使用情緒分數建構的投資組合表現優於大盤。
+- 顯示新聞媒體對台灣股市不具效率性，存在可預測性與套利空間。
+
+---
+
+## 未來研究方向
+
+- 延伸使用更長期的新聞資料進行分析。
+- 解決新聞文章同時標註多家公司的語意對應問題。
 
 
 # 參考資料

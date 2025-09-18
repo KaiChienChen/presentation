@@ -1,0 +1,752 @@
+---
+title: "在臺灣新聞資料下透過貪婪演算法預測股票報酬"
+subtitle: "Predicting Stock Returns via Greedy Algorithm with
+ Taiwanese News Data"
+author: "研究生：程長磊(指導教授：林士貴博士、翁久幸博士)(報告人: 陳凱騫)"
+fontsize: 15pt
+format: 
+  pptx: 
+    theme: "simple"
+    transition: "none"
+    slide-number: true
+    toc: true
+    incremental: false
+    keep-md: true
+    math: true
+    toc-depth: 1
+execute: 
+  echo: true
+---
+
+# 研究背景
+
+根據國際數據資訊公司(IDC)表示，在2024年前每年所產生、捕捉、複製、消耗的資料總量將會超過149ZB，且多數是**非結構化資料**。金融市場充斥大量非結構化資料，例如新聞、社群媒體。新聞會影響投資人情緒，進而影響股價報酬。因此，如何從新聞文本中萃取有預測力的訊息，是本研究的核心問題。
+
+# 研究動機
+
+-   傳統字典法過度依賴人工
+-   機器學習模型雖然準確，但難以解釋
+-   高維度資料越來越多，p \>\> n問題用標準回歸模型在困難
+-   本研究結合 **Greedy Algorithm** 與新聞文本，建立兼具可解釋性與預測力的模型
+
+# 研究目標
+
+1.  從台灣新聞中找出具預測力的字詞\
+2.  比較 **OGA Predict**（迴歸）與 **CGA Predict**（分類）\
+3.  結合 **HDIC** 與 **Trim**，避免過擬合
+
+# 資料來源與處理
+
+-   新聞來源：鉅亨網（2010–2021）
+-   預測標的：
+$$
+  \begin{cases} \text{台灣上市公司日報酬率(連續)}\\
+  \text{上漲時為1，下跌或平盤時為0(二分類)}
+\end{cases}
+$$
+-   前處理流程：
+    1.  CKIP 斷詞
+    2.  移除停用詞
+    3.  建立 Document-Term Matrix (DTM)
+    
+## 模型與計算
+
+
+## 原始資料：新聞文本
+
+- 移除未標記股票之新聞、標記多支股票新聞、重複新聞、公告類新聞
+
+- 根據Fan,Xue,andZhou(2021)之建議，透過設定閾值κ，設定字詞至少出現之次數以減少模型之雜訊(noise)，其公式如下:
+$$
+X^{freq} = \left\{ j^{th}  \text{word in}\ X : kj ≥ κ \right\}
+$$
+
+---
+
+## 字詞數量矩陣（Document-Term Matrix）
+
+每篇新聞轉換為一個向量，表示各字詞的出現次數，形成矩陣 $X$：
+
+$$
+X = 
+\begin{bmatrix}
+x_{11} & x_{12} & \cdots & x_{1p} \\
+x_{21} & x_{22} & \cdots & x_{2p} \\
+\vdots & \vdots & \ddots & \vdots \\
+x_{n1} & x_{n2} & \cdots & x_{np}
+\end{bmatrix}
+$$
+
+- $x_{ij}$：第 $i$ 篇新聞中，第 $j$ 個字詞的出現次數  
+- $n$：新聞篇數  
+- $p$：字詞總數（特徵維度）
+
+---
+
+## 標記向量
+
+每篇新聞對應一個標籤 $y_i$，表示其股價（例如：股價報酬率、漲、跌）：
+
+$$
+Y = 
+\begin{bmatrix}
+y_1 \\
+y_2 \\
+\vdots \\
+y_n
+\end{bmatrix}
+$$
+
+- $y_i$：第 $i$ 篇新聞的股價標籤（可為 0/1 或連續值）(二分類報酬或連續報酬)
+
+---
+
+## 流程圖
+
+![](images/plot1.png)
+
+# 方法論
+
+## PGA（Pure Greedy Algorithm）(Bühlmann and Yu (2003))
+
+PGA 是最基本的貪婪選模法，適用於高維度線性迴歸。它的邏輯是：
+
+> 每次挑選與殘差最相關的變數，並進行一元回歸，不修正先前估計的係數。
+
+## 數學流程1：
+
+考慮線性模型：
+
+$$
+y_i =\alpha +  \sum_{j=1}^{p} \beta_j x_{ij} + \varepsilon_i, \quad i = 1,2,3,...,n
+$$ 
+
+$y_i$ 與 $x_i$ 分別以$y_i - \bar{y}$和$x_i - \bar{x}$ 取代
+
+$$
+y_i =\sum_{j=1}^{p} \beta_j x_{ij} + \varepsilon_i, \quad i = 1,2,3,...,n
+$$
+
+
+## 數學流程 2：PGA 的第 $k$ 次迭代
+
+1. **殘差計算**  
+   $$
+   U_{i}^{(k)} = y - \hat{y_i}(x_i), \quad 1 \le i \le n
+   $$
+
+   - $y$：目標變數（例如：報酬、情緒分數）
+   - $U^{(k)}$：目前模型尚未解釋的部分（殘差）
+   - $U^{(1)} = y$
+
+> 這一步是計算目前模型還沒抓到的訊號。
+
+---
+
+2. **選擇最相關的變數**  
+   $$
+   j_{k+1} = \arg\min_{1\le j \le p}\sum_{i=1}^{n}(U_{i}^{(k)}-\tilde{\beta_{j}}^{(k)}x_{ij})^2
+   $$
+
+   - $x_{ij}$：第 $i$ 筆資料的第 $j$ 個解釋變數  
+   - $\tilde{\beta}_j^{(k)}$：在第 $k$ 次迭代中，對第 $j$ 個變數做一元回歸所得到的係數  
+   - $\sum_{i=1}^{n} (U_i^{(k)} - \tilde{\beta}_j^{(k)} x_{ij})^2$：用第 $j$ 個變數單獨解釋殘差的平方誤差  
+   - $j_{k+1}$：使誤差最小的變數索引 → 表示它最能解釋殘差
+
+> 這一步是對每個變數都做一次一元回歸，選出最能降低殘差平方和的那一個。換句煥說，這一步是挑出最能解釋殘差的變數，依據是「誰跟殘差最相關」。
+
+---
+
+3. **更新預測值（只加新變數）**  
+   $$
+   \hat{y}_{k+1}(x) = \hat{y_k}(x) + \tilde{\beta}_{j_{k+1}} x_{j_{k+1}}
+   $$
+
+   - $\tilde{\beta}_{\hat{j}_{k+1}}$：新選變數的迴歸係數（用一元回歸估計）
+   - $x_{\hat{j}_{k+1}}$：新選進來的變數
+   - $y_{k+1}(x)$：更新後的預測值
+
+> 這一步是把新變數的貢獻加進模型，但不修正舊變數的係數。
+
+## 優缺點：
+
+-   優點：計算快速、實作簡單\
+-   缺點：不修正舊係數 -\> 估計不穩定；可能重複選變數 -\> 解釋重疊
+
+## OGA（Orthogonal Greedy Algorithm）(Ing and Lai (2011))
+
+OGA 是 PGA 的改良版，加入**正交化與重新估計**，提升模型穩定性。
+
+> 每次選變數後，將其對已選變數做正交化，再用 OLS 重新估計所有係數。
+
+## 數學流程：
+
+1.  選變數（與殘差最相關）：\
+    $$
+    \frac{\sum_{i=1}^{n}(U_{i}^{(k)}-\tilde{\beta_{j}}^{(k)}x_{ij})^2}{\sum_{i=1}^{n}(U_{i}^{(k)})^2} = 1 - r_j^2
+    $$
+
+2.  更新模型：\
+    $$
+    \hat{y}_{k+1}(x) = \hat{y}_k(x) + \tilde{\beta}_{j}^{(k)}x^\perp_{\hat{J}_{k+1}}
+    $$
+
+## Algorithm 1 Orthogonal Greedy Algorithm (Ing et al., 2011){.smaller}
+
+$$
+\begin{aligned}
+&1: \quad J_{0} \leftarrow \varnothing, \quad r_{0} \leftarrow y \\
+&2: \quad \text{for } i = 1 : K \ \text{do} \\
+&3: \quad\quad \hat{j}_i \leftarrow \arg\max_{1 \leq j \leq p} \frac{|r_{i-1}^\top X_j|}{\|X_j\|_2} \\
+&4: \quad\quad \hat{J}_i \leftarrow \hat{J}_{i-1} \cup \{\hat{j}_i\} \\
+&5: \quad\quad r_i \leftarrow y - \hat{y}_{\hat{J}_i} \\
+&6: \quad \text{end for} \\
+&7: \quad \hat{k} \leftarrow \arg\min_{1 \leq k \leq K} HDIC(\hat{J}_k) \\
+&8: \quad \hat{N} \leftarrow \hat{J}_{\hat{k}} \\
+&9: \quad \text{if } \#(\hat{N}) > 1 \ \text{then} \\
+&10:\quad\quad \text{for } l \in \hat{J}_{\hat{k}} \ \text{do} \\
+&11:\quad\quad\quad \text{if } HDIC(\hat{J}_{\hat{k}} - \{l\}) \leq HDIC(\hat{J}_{\hat{k}}) \ \text{then} \\
+&12:\quad\quad\quad\quad \hat{N} \leftarrow \hat{N} - \{l\} \\
+&13:\quad\quad\quad \text{end if} \\
+&14:\quad\quad \text{end for} \\
+&15:\quad \text{end if} \\
+&16:\quad \text{return } \hat{N}
+\end{aligned}
+$$
+
+## 優點：
+
+- 正交化避免重複解釋\
+- 每次都重新估計 → 模型更穩定\
+- 適合高維度線性迴歸
+
+---
+
+## PGA vs OGA 比較表
+
+| 特性                     | PGA（Pure Greedy Algorithm）                         | OGA（Orthogonal Greedy Algorithm）                          |
+|--------------------------|------------------------------------------------------|-------------------------------------------------------------|
+| 選變數依據               | 最小殘差平方和（逐一做一元回歸）                    | 與殘差最相關（最大相關係數）                                |
+| 是否正交化               | 否                                                |  是（新變數對已選變數做 Gram-Schmidt 正交化）             |
+| 是否重新估計所有係數     |  否（只估新變數）                                  | 是（每次都用 OLS 重新估計全部已選變數）                   |
+| 是否可能重複選變數       |  是                                                | 否（正交化避免重複解釋）                                  |
+| 模型穩定性               | 較差，容易受早期選擇影響                            | 較佳，每步都重新校正                                         |
+| 適用情境                 | 初步快速選模，高維度但不要求穩定性                  | 高維度線性迴歸，需穩定且具解釋力                             |
+| 計算成本                 | 低（只做一元回歸）                                  | 中（每步需做多元 OLS）                                       |
+
+------------------------------------------------------------------------
+
+## CGA（Chebyshev Greedy Algorithm）
+
+CGA 是針對**非線性模型（如邏吉斯迴歸）**設計的貪婪選模法，特別適合分類問題（如：預測漲跌）。
+
+> 每次挑選使損失函數（如 logistic loss）改善最多的變數，不進行正交化。
+
+## 模型設定（邏吉斯迴歸）：
+
+$$
+E(y_i) = \frac{e^{\alpha + \sum_{j=1}^{p} \beta_j x_{ij}}}{1 + e^{\alpha + \sum_{j=1}^{p} \beta_j x_{ij}}}
+$$
+
+對數概似函數：
+
+$$
+l(\beta) = \sum_{i=1}^{n} \left[ y_i (\alpha + \sum_{j=1}^{p} \beta_j x_{ij}) - \log(1 + e^{\alpha + \sum_{j=1}^{p} \beta_j x_{ij}}) \right]
+$$
+
+損失函數:
+$$
+\text{loss function}=\ell(\beta)=-l(\beta)
+$$
+
+---------
+
+
+## CGA 選模流程：
+
+1.  初始化：$\beta = 0$，所有變數標準化\
+
+2.  每次選使偏微分最大者：\
+    $$
+    \hat{J}_{k+1} = \arg\max_{1\le j\le p} \left|\nabla_j \ell(\hat{\beta_{\hat{J_{k+1}}}})  \right|
+    $$
+
+3.  加入變數集合，重新用 MLE 估計參數：\
+    $$
+    \hat{\beta_{\hat{J_{k+1}}}} = \arg\max_\beta(\beta)
+    $$
+
+---
+
+## Algorithm 2 Chebyshev Greedy Algorithm (Chen et al.){.smaller}
+
+$$
+\begin{aligned}
+&1:\quad \hat{J}_0 \leftarrow \varnothing, \quad \hat{J}_T \leftarrow \varnothing, \quad \hat{\beta}_{J_0} \leftarrow 0 \\
+&2:\quad \text{for } m = 1 : K_n \ \text{do} \\
+&3:\quad\quad \hat{j}_m \leftarrow \arg\max_{1 \leq j \leq p} \big|\nabla_j \, \ell(\hat{\beta}_{j_{m-1}})\big| \\
+&4:\quad\quad \hat{J}_m \leftarrow \hat{J}_{m-1} \cup \{\hat{j}_m\} \\
+&5:\quad\quad \hat{\beta}_{j_m} \leftarrow \arg\min_{\beta: \, \beta(J_m^c)=0} \ \ell(\beta) \\
+&6:\quad \text{end for} \\
+&7:\quad \hat{k} \leftarrow \arg\min_{1 \leq k \leq K} HDIC(\hat{J}_k) \\
+&8:\quad \text{for } k = 1 : \hat{k} \ \text{do} \\
+&9:\quad\quad \text{if } HDIC(\hat{J}_{\hat{k}} - \{j_k\}) < HDIC(\hat{J}_{\hat{k}}) \ \text{then} \\
+&10:\quad\quad\quad \hat{J}_T \leftarrow \hat{J}_T \cup \{j_k\} \\
+&11:\quad\quad \text{end if} \\
+&12:\quad \text{end for} \\
+&13:\quad \hat{\beta} \leftarrow \arg\min_{\beta: \, \beta(\hat{J}_T^c)=0} \ \ell(\beta) \\
+&14:\quad \text{return } \hat{\beta}
+\end{aligned}
+$$
+
+----
+
+## 特點：
+
+-   適用非線性模型\
+-   不需正交化，直接用偏微分值選變數\
+-   可搭配 HDIC 做模型大小選擇
+
+------------------------------------------------------------------------
+
+## HDIC 與 Trim
+
+## HDIC（High-Dimensional Information Criterion）
+
+用來決定最佳模型大小，避免過度擬合。
+
+$$
+\text{HDIC}(J) = 
+\begin{cases}
+nlog(\hat{\sigma_{J}^2})+\#(J) \cdot w_n \cdot  \log\left(p\right) \\
+\ell(\hat{\beta}_J) + \#(J) \cdot w_n \cdot \left( \log\left(\frac{p}{n}\right) \right)^{1/2}
+\end{cases}
+$$
+
+-$\#(J)$：目前模型中變數數量\
+-$w_n$：懲罰強度（如 HDAIC 用常數，HDBIC 用 $log (n)$）
+
+------------------------------------------------------------------------
+
+## Trim（模型修剪）
+
+從已選變數中剔除那些移除後能讓 HDIC 下降的變數：
+
+$$
+\hat{N}_n = 
+\begin{cases}
+\left\{ \hat{J}_{\ell} : \text{HDIC}(\hat{J}_{\hat{k_n}} - \{\hat{J}_{\ell}\}) > \text{HDIC}(\hat{J}_{\hat{k_n}}),\quad 1 \le \ell \le \hat{k}_n \ \right\} \quad \text{if}\ \hat{k}_n \ge 1 \\
+\left\{ \hat{J}_1 \right\}\quad \text{if}\ \hat{k}_n = 1 \\
+\end{cases}
+$$
+
+# 比較與整理
+
+
+## PGA vs OGA vs CGA 比較總表{.smaller}
+
+| 特性分類       | PGA（Pure Greedy）                         | OGA（Orthogonal Greedy）                         | CGA（Chebyshev Greedy）                         |
+|----------------|--------------------------------------------|--------------------------------------------------|--------------------------------------------------|
+| 選變數邏輯   | 最小殘差平方和（線性）                    | 最大相關性（線性）                              | 最大偏微分（非線性）                            |
+|️ 是否正交化   |  否                                       | 是（Gram-Schmidt）                            | 否                                             |
+|️ 係數估計方式 | 只估新變數                                 | 每次重新估計所有已選變數                        | 每次用 MLE 估計所有已選變數                     |
+|️ 模型穩定性   | 較差，容易受早期選擇影響                  | 較佳，每步都重新校正                            | 較佳，偏微分選變數具方向性                      |
+| 適用模型類型 | 線性迴歸                                   | 線性迴歸                                         | 非線性模型（如邏輯斯迴歸）                       |
+| 適用資料結構 | 高維度但不要求穩定性                      | 高維度且需穩定與可解釋性                        | 高維度分類問題，需方向性與效率                 |
+|️ 計算成本     | 低（只做一元回歸）                        | 中（每步需做多元 OLS）                          | 中（每步需計算偏微分與 MLE）                    |
+| 可解釋性     | 中（逐步選模但不修正）                    | 高（每步都重新估計，避免重複解釋）              | 高（偏微分具方向性，選模邏輯清楚）              |
+
+## 情緒分數
+
+---
+
+## OGA（Orthogonal Greedy Algorithm）
+
+## 計算流程
+
+1. **建模方式**
+   - 使用普通最小平方法（OLS）迴歸：
+     $$
+     \hat{Y}_i = \hat{\alpha} + \hat{\beta} X_{i:\hat{N}}
+     $$
+
+2. **情緒分數推估**
+   - 將新文章的詞彙向量 $X_{new:\hat{N}}$ 帶入模型，計算預測報酬或相似分數。
+
+---
+
+## CGA（Chebyshev Greedy Algorithm）
+
+## 計算流程
+
+1. **建模方式**
+   - 使用邏輯斯迴歸（Logistic Regression）模型：
+     $$
+     \hat{Y_i} = \frac{e^{\hat{\alpha}+\sum \hat{\beta_{J_T}}X_{i:{\hat{J_T}}}}}{1 + e^{\hat{\alpha}+\sum \hat{\beta_{J_T}}X_{i:{\hat{J_T}}}}}
+     $$
+   - $\hat{Y_i}$：報酬方向（例如正報酬為 1，負報酬為 0）  
+   - $X_{i:{\hat{J_T}}}$：第i篇新聞中選出的詞彙次數 
+   - $\hat\beta_{J_T}$：詞彙影響係數
+
+2. **情緒分數推估**
+   - 將新文章的詞彙向量 $X_{new:{\hat{J_T}}}$ 帶入模型，計算其預測機率，即為情緒分數。
+
+
+---
+
+## 小結比較
+
+| 模型 | 選模邏輯 | 建模方式 | 情緒分數意涵 |
+|------|-----------|-----------|----------------|
+| CGA  | 座標式貪婪選模 | 邏輯斯迴歸 | 預測報酬方向的機率 |
+| OGA  | 殘差最大相關性 + 正交化 | 線性迴歸（OLS） | 預測報酬值或相似分數 |
+
+
+
+# 實證分析
+
+## 敘述統計{.smaller}
+
+<div style="display: flex; justify-content: space-between;">
+  <img src="images/plot4_1.png" alt="左圖" style="width:48%;">
+  <img src="images/plot4_2.png" alt="右圖" style="width:48%;">
+</div>
+
+## 資料預處理
+
+## 自然語言處裡
+
+- 進行斷詞、詞性標記及實體辨識
+
+<div style="border:1px solid #ccc; padding:10px; background-color:#f9f9f9;">
+記憶體封測廠力成 (6239-TW) 今 (5) 日傳出發生氣爆，對此力成回應，僅是3C廠區內發生小事故，但未造成人員傷亡，也沒有對生產或營運造成任何影響。
+</div>
+
+
+## CKIP 斷詞後結果整理如下：
+
+<div style="font-size: 18px; overflow-x: auto;">
+  <table border="1" cellspacing="0" cellpadding="4">
+    <tr>
+      <th>單詞</th>
+      <td>記憶體</td><td>封測廠</td><td>力成</td><td>(</td><td>6239-TW</td><td>)</td><td>今</td><td>(5)</td><td>日</td><td>傳出</td><td>發生</td><td>氣爆</td><td>，</td><td>...</td><td>造成</td><td>任何</td><td>影響</td>
+    </tr>
+    <tr>
+      <th>詞性</th>
+      <td>Na</td><td>Nc</td><td>Nb</td><td>Pun.</td><td>Neu</td><td>Pun.</td><td>Nd</td><td>Neu</td><td>Nd</td><td>VC</td><td>VJ</td><td>VH</td><td>Pun.</td><td>...</td><td>VK</td><td>Vega</td><td>Na</td>
+    </tr>
+    <tr>
+      <th>實體辨識</th>
+      <td></td><td></td><td>人物</td><td></td><td></td><td></td><td>日期</td><td>日期</td><td>日期</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td>
+    </tr>
+  </table>
+</div>
+
+---
+  
+## 正規化
+
+- 移除<font color="red">『專有名詞』、『日期』等字詞</font>、<font color="green">移除數字、標點符號、特殊符號等非中文詞彙</font>、<font color="blue">移除中文停止詞或修飾詞</font>
+
+<div style="font-size: 18px; overflow-x: auto;">
+  <table border="1" cellspacing="0" cellpadding="6">
+    <tr>
+      <th>單詞</th>
+      <td>記憶體</td>
+      <td>封測廠</td>
+      <td><span style="color:red">力成</span></td>
+      <td><span style="color:green">(</span></td>
+      <td><span style="color:green">6239-TW</span></td>
+      <td><span style="color:green">)</span></td>
+      <td><span style="color:red">今</span></td>
+      <td><span style="color:red">(5)</span></td>
+      <td><span style="color:red">日</span></td>
+      <td>傳出</td>
+      <td>發生</td>
+      <td>氣爆</td>
+      <td><span style="color:green">，</span></td>
+      <td><span style="color:blue">對</span></td>
+      <td><span style="color:blue">此</span></td>
+      <td><span style="color:red">力成</span></td>
+      <td>回應</td>
+    </tr>
+    <tr>
+      <th>詞性</th>
+      <td>Na</td>
+      <td>Nc</td>
+      <td>Nb</td>
+      <td>Pun.</td>
+      <td>Neu</td>
+      <td>Pun.</td>
+      <td>Nd</td>
+      <td>Neu</td>
+      <td>Nd</td>
+      <td>VC</td>
+      <td>VJ</td>
+      <td>VH</td>
+      <td>Pun.</td>
+      <td>P</td>
+      <td>Nep</td>
+      <td>Nb</td>
+      <td>Vc</td>
+    </tr>
+    <tr>
+      <th>實體辨識</th>
+      <td></td>
+      <td></td>
+      <td>人物</td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td>日期</td>
+      <td>日期</td>
+      <td>日期</td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td></td>
+    </tr>
+  </table>
+</div>
+
+
+---
+
+## 訓練設定
+
+- 訓練集:\
+  - 五年為一個滾動週期\
+  - 例: 第一個週期(2010年-2014年)、第二個週期(2011年-2015年)\
+  - 共七組訓練集\
+  - 將 Day T 所發布之新聞與其所標記之股票 Day T 至 Day T+1 Open-to-Open Return 相互對應\
+- 測試集:\
+  - 訓練週期後一年做為樣本外測試集\
+  - 使用 Day T 所發布之新聞估算預測其情緒分數，並建構 Day T+1 之投資組合\
+  
+- 超參數:\
+  - $\kappa = 0.7-0.9 \quad (0.8 - 0.94)$ 每0.2為一間隔挑選$\kappa$\
+  - k 為OGA或PGA在做HDIC前挑選之變數數量(k = 100-500)\
+
+## 字詞挑選結果：OGA (k = 200, $\kappa$ = 0.78) 
+
+![](images/plot4_5.png)
+
+## 字詞挑選結果：CGA (k = 200, $\kappa$ = 0.78) 
+
+![](images/plot4_6.png)
+
+## 投資組合報酬比較
+
+- 投資組合:\
+  - 多頭:<font color = "red">買</font>進情緒分數最**高**的5篇新聞對應之股票\
+  - 空頭:<font color = "red">賣</font>出情緒分數最**低**的5篇新聞對應之股票\
+- 買賣方式:\
+  - 等權重(Equal-Weight, EW)\
+  - 市值權重(Value-Weight, VW)\
+- 評估績效:\
+  - 多空部位(L-S)\
+  - 多頭(L)\
+  - 空頭(S)\
+
+---
+
+## OGA v.s. CGA 比較
+
+![](images/plot4_7.png)
+
+---
+
+<table border="1" cellspacing="0" cellpadding="6" style="font-size:22px; text-align:center;">
+  <thead>
+    <tr>
+      <th>交易策略</th>
+      <th>夏普值 (Sharpe Ratio)</th>
+      <th>平均報酬 (Average Return)</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr style="background-color:#e6f2ff;">
+      <td>OGA EW L-S</td><td>0.52</td><td>3.33</td>
+    </tr>
+    <tr style="background-color:#e6f2ff;">
+      <td>OGA EW L</td><td>-0.11</td><td>-0.64</td>
+    </tr>
+    <tr style="background-color:#e6f2ff;">
+      <td>OGA EW S</td><td>0.73</td><td>3.97</td>
+    </tr>
+    <tr style="background-color:#e8fbe8;">
+      <td>CGA EW L-S</td><td>1.18</td><td>6.97</td>
+    </tr>
+    <tr style="background-color:#e8fbe8;">
+      <td>CGA EW L</td><td>0.45</td><td>2.36</td>
+    </tr>
+    <tr style="background-color:#e8fbe8;">
+      <td>CGA EW S</td><td>0.83</td><td>4.61</td>
+    </tr>
+    <tr>
+      <td><strong>TW 50</strong></td><td><strong>0.74</strong></td><td><strong>4.12</strong></td>
+    </tr>
+  </tbody>
+</table>
+
+---
+
+## CGA投資組合績效
+
+![](images/plot4_8.png)
+
+- 空頭部位之績效優於多頭部位之績效
+- 等權重之績效優於市值權重之績效
+
+
+## 新聞與價格延遲之關係與反應速度
+
+
+- 分析目的:
+  - 探討台股市場中，投資人對新聞消息的反應是否提前、即時或延遲。
+  
+![](images/plot4_9.png)
+
+---
+
+## 三種策略比較
+
+| 策略   | 對應時間範圍                  | 說明                                       |
+|--------|-------------------------------|--------------------------------------------|
+| Day−1  | 第 T−1 天開盤 → 第 T 天開盤   | 新聞尚未發佈，股價已有劇烈反應，可能反映內線消息 | 
+| Day0   | 第 T 天開盤 → 第 T+1 天開盤     | 新聞當天即時反應，但無法事先進場            |
+| Day+1  | 第 T+1 天開盤 → 第 T+2 天開盤 | 新聞隔天仍有顯著反應，情緒延遲反應仍可帶來超額報酬，是可行的交易策略     |
+
+## 結論
+
+利用新聞情緒建構投資組合，隔日進場仍具預測力與報酬潛力。
+
+## 異質性分析:市值與波動度對新聞情緒反應的影響
+
+
+## 分析目的
+探討不同類型股票在面對新聞情緒時的反應速度與強度是否存在差異。
+
+---
+
+## 市值分類分析
+
+- 依台股上市公司市值**中位數**，分為「大公司」與「小公司」
+- 小公司：
+  - 多頭反應至 Day+1 即結束 → 投資者對正面新聞反應較弱
+  - 空頭反應延續至 Day+4 → 投資者對負面新聞反應強烈，顯示恐慌心理
+- 大公司：
+  - 空頭反應於 Day+1 完成 → 負面新聞影響較小，投資者信心穩定
+
+![](images/plot4_11.png)
+
+---
+
+## 波動度分類分析
+
+- 依台股上市公司波動度**中位數**，分為「高波動」與「低波動」公司
+- 高波動公司：
+  - 報酬不確定性高 → 擁有資訊者可能獲得更高報酬
+  - 情緒反應較慢 → 約需 3 天才能完全反映至股價
+- 低波動公司：
+  - 情緒訊息較易被市場吸收 → 反應速度較快
+
+![](images/plot4_12.png)
+
+---
+
+## 延遲反應分析
+
+- 觀察新聞發佈後第 1 至第 10 天的平均報酬
+- 多空策略於 Day+3 完全反應 → 台股反應速度快於美股（美股需至 Day+4）
+- 顯示台股新聞情緒多在發佈日或前一天已被市場吸收
+
+![](images/plot4_10.png)
+
+---
+
+## 結論摘要
+
+| 分類維度 | 發現重點 |
+|----------|-----------|
+| 市值大小 | 小公司負面新聞反應延遲且強烈，大公司較穩定 |
+| 波動度高低 | 高波動公司反應較慢但潛在報酬高 |
+| 延遲反應 | 台股新聞情緒多在 Day+3 前完成反應，快於美股
+
+
+#  研究結論與貢獻整理
+
+## 實證發現
+
+- 兩種高維選模模型估算出的新聞情緒分數能有效預測台股報酬。
+- 非線性報酬假設下，投資組合績效更佳。
+- 情緒分數能精確捕捉新聞情緒，有助於理解新聞媒體對投資決策的影響。
+
+## 市場反應速度與行為差異
+
+- 台灣股市對新聞的反應速度快於美國市場（符合 Ke et al., 2019）。
+- 台灣投資人（以散戶為主）對負面新聞反應更強烈，傾向恐慌性賣出。
+- 空頭策略報酬優於多頭策略，反映市場的悲觀偏誤。
+
+## 投資策略績效
+
+- 使用情緒分數建構的投資組合表現優於大盤。
+- 顯示新聞媒體對台灣股市不具效率性。
+
+---
+
+## 未來研究方向
+
+- 延伸使用更長期的新聞資料進行分析。
+- 解決新聞文章同時標註多家公司的語意對應問題。
+
+
+# 參考資料
+
+- 郭亭佑. (2021). 透過文字探勘預測台股報酬. 政治大學金融學系學位論文\
+- Blei, D. M., Ng, A.Y., andJordan, M.I.(2003). Latent dirichlet allocation. Journal of Machine Learning Research, 3,993-1022\
+- Chen, Y. L, Dai, C. S and Ing, C. K (2019). High-dimensional model selection via
+ Chebyshev greedy algorithms. Working paper.\
+- Fan, J., Xue, L., and Zhou, Y. (2021). How much can machines learn finance from
+ Chinese text data?. Working Paper.\
+- Gentzkow, M., Kelly, B., and Taddy, M. (2019). Text as data. Journal of Economic
+ Literature, 57 (3), 535-74.\
+- Henry, E. (2008). Are investors influenced by how earnings press releases are written?. The Journal of Business Communication, 45(4), 363–407.\
+- Ing,C.K.,andLai,T.L.(2011). Astepwiseregressionmethodandconsistentmodel
+ selection for high-dimensional sparse linear models. Statistica Sinica, 1473-1513.\
+- Jegadeesh, N., and Wu, D. (2013). Word power: A new approach for content anal
+ysis. Journal of Financial Economics, 110(3), 712-729.\
+
+---
+
+##
+
+- Ke, Z. T., Kelly, B. T., and Xiu, D. (2019). Predicting returns with text data. Work
+ing Paper.\
+- Loughran, T., and McDonald, B. (2011). When is a liability not a liability? Textual
+ analysis, dictionaries, and 10-Ks. Journal of Finance, 66(1), 35-65.\
+- Manela, A., and Moreira, A. (2017). News implied volatility and disaster concerns. Journal of Fi- nancial Economics, 123(1), 137–162.\
+- Temlyakov, V. N. (2015). Greedy approximation in convex optimization. Con
+structive Approxima- tion, 41(2), 269-296\
+- Chen, Y. L, Dai, C. S and Ing, C. K (2019). High-dimensional model selection via
+ Chebyshev greedy algorithms. Working Paper \
+- Ing,C.K.,andLai,T.L.(2011). Astepwiseregressionmethodandconsistentmodel
+ selection for high-dimensional sparse linear models. Statistica Sinica, 1473-1513.\
+- Temlyakov, V. N. (2015). Greedy approximation in convex optimization. Con
+structive Approxima- tion, 41(2), 269-296.\
+- Fan, J., Xue, L., and Zhou, Y. (2021). How much can machines learn finance from
+ Chinese text data?. Working Paper.\
+- Tetlock, P. C. (2007). Giving content to investor sentiment: The role of media in
+ the stock market. The Journal of Finance, 62(3), 1139-1168.\
+
+--- 
+
+##
+
+- Tibshirani, R. (1996). Regression shrinkage and selection via the lasso. Journal of the Royal Statistical Society: Series B (Methodological), 58(1), 267-288.\
+- You, J., Zhang, B., and Zhang, L. (2018). Who captures the power of the pen?.
+ Review of Financial Studies, 31(1), 43–96\
